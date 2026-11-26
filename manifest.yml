@@ -1,0 +1,114 @@
+# TriagePilot — Forge app for Codegeist 2026
+# Category: Apps for Software Teams. Bonus: Best Agents (rovo:agent).
+# NO Forge LLM API calls anywhere in this app (charged, no credits provided).
+# The AI angle is the Rovo agent prompt + the deterministic triage engine
+# in src/triage.js. Nothing writes to Jira except the explicit Approve
+# action in the issue panel (human-approval gate, enforced in src/index.js).
+#
+# NOTE: app.id is a PLACEHOLDER. The real id is assigned by
+# `forge register` / `forge create` after login with Firman's Atlassian
+# developer account. Do not deploy with this id.
+
+modules:
+  rovo:agent:
+    - key: triagepilot-agent
+      name: TriagePilot
+      description: Triages Jira issues with real context and proposes priority, owner
+        area, duplicate warnings and missing info — always for human approval,
+        never changes Jira by itself.
+      # Prompt as a resource file (needs Forge CLI >= 10.6.0; installed: 16.0.0).
+      # Form per official rovo:agent docs: resource:<resource-key>;<path inside it>.
+      prompt: resource:triagepilot-prompt;prompt.md
+      conversationStarters:
+        - Triage this issue
+        - Find duplicates of this issue
+        - What is missing from this issue?
+      actions:
+        - get-issue-context
+        - find-similar-issues
+        - propose-triage
+
+  action:
+    - key: get-issue-context
+      name: Get issue context
+      function: get-issue-context-fn
+      actionVerb: GET
+      description: Fetch the current Jira issue (summary, description, status,
+        priority, assignee, labels, components) plus its linked Confluence
+        pages, read-only.
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The key of the Jira issue to work on (e.g. PROJ-123).
+          type: string
+          required: true
+    - key: find-similar-issues
+      name: Find similar issues
+      function: find-similar-issues-fn
+      actionVerb: GET
+      description: Search Jira for issues with a similar summary to the given issue,
+        to surface possible duplicates.
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The key of the Jira issue to work on (e.g. PROJ-123).
+          type: string
+          required: true
+    - key: propose-triage
+      name: Propose triage
+      function: propose-triage-fn
+      actionVerb: GET
+      description: Propose a triage for the given issue — priority, suggested owner
+        area, duplicate warnings and a missing-information checklist. Proposes
+        only; never applies changes.
+      inputs:
+        issueKey:
+          title: Issue key
+          description: The key of the Jira issue to work on (e.g. PROJ-123).
+          type: string
+          required: true
+
+  jira:issuePanel:
+    - key: triagepilot-panel
+      resource: main
+      resolver:
+        function: resolver
+      render: native
+      title: TriagePilot
+      icon: https://developer.atlassian.com/platform/forge/images/icons/issue-panel-icon.svg
+      viewportSize: medium
+
+  function:
+    - key: resolver
+      handler: index.handler
+    - key: get-issue-context-fn
+      handler: index.getIssueContext
+    - key: find-similar-issues-fn
+      handler: index.findSimilarIssues
+    - key: propose-triage-fn
+      handler: index.proposeTriage
+
+resources:
+  - key: main
+    path: src/frontend/index.jsx
+  - key: triagepilot-prompt
+    path: prompts
+
+permissions:
+  scopes:
+    # Read Jira issues (issue fetch + JQL search + remote links).
+    - read:jira-work
+    # Apply an approved proposal only: set priority, add labels, post a comment.
+    - write:jira-work
+    # Read linked Confluence pages for triage context (read-only).
+    - read:confluence-content.all
+    # Granular scope for the Confluence v2 pages API (body-format=storage).
+    # The v1 content endpoint returned 401 "scope does not match" on the
+    # demo-site install even with read:confluence-content.all, so the app
+    # reads page bodies through v2 (v1 kept as a fallback in src/index.js).
+    - read:page:confluence
+
+app:
+  runtime:
+    name: nodejs24.x
+  id: ari:cloud:ecosystem::app/13c67951-6d3a-4355-8b55-03ba4c48eb02
