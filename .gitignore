@@ -1,0 +1,17 @@
+# TriagePilot — public-repo hygiene (Codegeist 2026)
+# Dependencies and build output
+node_modules/
+dist/
+build/
+*.log
+
+# Forge CLI local state (app ids live in manifest.yml; never commit tokens)
+.forge/
+forge-*.log
+
+# Editor and OS files
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
